@@ -1,0 +1,20 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation=
+               "http://www.springframework.org/schema/beans
+                http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+                ">
+
+    <bean id="farmService1" class="com.muleinaction.FarmService">
+        <property name="farmName" value="farm1"/>
+    </bean>
+
+   <bean id="farmService2" class="com.muleinaction.FarmService">
+        <property name="farmName" value="farm2"/>
+    </bean>
+
+    <bean id="farmService3" class="com.muleinaction.FarmService">
+        <property name="farmName" value="farm3"/>
+    </bean>
+
+</beans>

@@ -1,0 +1,69 @@
+<mule xmlns="http://www.mulesource.org/schema/mule/core/2.2"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:spring="http://www.springframework.org/schema/beans"
+      xmlns:context="http://www.springframework.org/schema/context"
+      xmlns:jms="http://www.mulesource.org/schema/mule/jms/2.2"
+      xmlns:jdbc="http://www.mulesource.org/schema/mule/jdbc/2.2"
+      xmlns:vm="http://www.mulesource.org/schema/mule/vm/2.2"
+      xmlns:jbossts="http://www.mulesource.org/schema/mule/jbossts/2.2"
+      xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+       http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd
+       http://www.mulesource.org/schema/mule/core/2.2 http://www.mulesource.org/schema/mule/core/2.2/mule.xsd
+       http://www.mulesource.org/schema/mule/jms/2.2 http://www.mulesource.org/schema/mule/jms/2.2/mule-jms.xsd
+       http://www.mulesource.org/schema/mule/jdbc/2.2 http://www.mulesource.org/schema/mule/jdbc/2.2/mule-jdbc.xsd
+       http://www.mulesource.org/schema/mule/vm/2.2 http://www.mulesource.org/schema/mule/vm/2.2/mule-vm.xsd
+       http://www.mulesource.org/schema/mule/jbossts/2.2 http://www.mulesource.org/schema/mule/jbossts/2.2/mule-jbossts.xsd
+       ">
+
+    <global-property name="jms.url" value="vm://localhost"/>
+
+    <spring:beans>
+        <spring:import resource="spring-config.xml"/>
+    </spring:beans>
+
+    <jdbc:connector name="operationalDb" dataSource-ref="operationalDataSource">
+        <jdbc:query key="operationalBillingInsert"
+                    value="INSERT INTO BILLING_STATS VALUES (0,#[map-payload:stat])"/>
+    </jdbc:connector>
+
+    <jdbc:connector name="warehouseDb" dataSource-ref="warehouseDataSource">
+        <jdbc:query key="warehouseBillingInsert"
+                    value="INSERT INTO BILLING_STATS VALUES (0,#[map-payload:stat])"/>
+    </jdbc:connector>
+
+    <jms:activemq-xa-connector
+            brokerURL="${jms.url}"
+            name="jmsConnector"
+            specification="1.1"
+            numberOfConcurrentTransactedReceivers="1"
+            maxRedelivery="1"/>
+
+    <jbossts:transaction-manager/>
+
+    <model name="BillingModel">
+        <service name="BillingService">
+            <inbound>
+                <vm:inbound-endpoint path="billing.stat">
+                    <xa-transaction action="ALWAYS_BEGIN"/>
+                </vm:inbound-endpoint>
+                <jms:inbound-endpoint queue="billing.stat">
+                    <xa-transaction action="ALWAYS_BEGIN"/>
+                </jms:inbound-endpoint>
+            </inbound>
+            <component class="com.clood.billing.BillingServiceImpl"/>
+            <outbound>
+                <multicasting-router>
+                    <jdbc:outbound-endpoint connector-ref="operationalDb" queryKey="operationalBillingInsert">
+                        <xa-transaction action="ALWAYS_JOIN"/>
+                    </jdbc:outbound-endpoint>
+                    <jdbc:outbound-endpoint connector-ref="warehouseDb" queryKey="warehouseBillingInsert">
+                        <xa-transaction action="ALWAYS_JOIN"/>
+                    </jdbc:outbound-endpoint>
+                </multicasting-router>
+            </outbound>
+          
+        </service>
+    </model>
+
+</mule>

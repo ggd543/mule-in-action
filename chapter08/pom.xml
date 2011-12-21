@@ -1,0 +1,30 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.muleinaction</groupId>
+        <artifactId>mia-parent</artifactId>
+        <version>1.0</version>
+    </parent>
+
+    <artifactId>chapter08</artifactId>
+    <packaging>pom</packaging>
+    <name>Mule in Action - Chapter 8</name>
+
+    <dependencies>
+            <dependency>
+            <groupId>org.apache.activemq</groupId>
+            <artifactId>activemq-core</artifactId>
+        </dependency>
+        <dependency>
+                <groupId>org.mule.transports</groupId>
+                <artifactId>mule-transport-jms</artifactId>
+            </dependency>
+        </dependencies>
+
+    <modules>
+        <module>exception-strategy</module>
+        <module>connection-strategy</module>
+    </modules>
+</project>

@@ -1,0 +1,56 @@
+<mule xmlns="http://www.mulesource.org/schema/mule/core/2.2"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:spring="http://www.springframework.org/schema/beans"
+      xmlns:context="http://www.springframework.org/schema/context"
+      xmlns:file="http://www.mulesource.org/schema/mule/file/2.2"
+      xmlns:jms="http://www.mulesource.org/schema/mule/jms/2.2"
+      xmlns:jdbc="http://www.mulesource.org/schema/mule/jdbc/2.2"
+      xmlns:xm="http://www.mulesource.org/schema/mule/xml/2.2"
+
+      xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+       http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd
+       http://www.mulesource.org/schema/mule/core/2.2 http://www.mulesource.org/schema/mule/core/2.2/mule.xsd
+       http://www.mulesource.org/schema/mule/file/2.2 http://www.mulesource.org/schema/mule/file/2.2/mule-file.xsd
+       http://www.mulesource.org/schema/mule/jms/2.2 http://www.mulesource.org/schema/mule/jms/2.2/mule-jms.xsd
+       http://www.mulesource.org/schema/mule/jdbc/2.2 http://www.mulesource.org/schema/mule/jdbc/2.2/mule-jdbc.xsd
+       http://www.mulesource.org/schema/mule/xml/2.2 http://www.mulesource.org/schema/mule/xml/2.2/mule-xml.xsd
+    "
+        >
+    <global-property name="jdbc.username" value=""/>
+    <global-property name="jdbc.password" value=""/>
+    <global-property name="jdbc.url" value="jdbc:derby:muleEmbeddedDB;create=true"/>
+    <global-property name="jdbc.driver" value="org.apache.derby.jdbc.EmbeddedDriver"/>
+
+    <spring:beans>
+        <spring:import resource="spring-config.xml"/>
+    </spring:beans>
+
+    <jms:activemq-connector name="jmsConnector" specification="1.1" brokerURL="vm://localhost"/>    
+
+    <jdbc:connector name="jdbcConnector" dataSource-ref="dataSource">
+        <jdbc:query key="statsInsert"
+                    value="
+          INSERT INTO PERF_METRICS VALUES
+                    (0,#[map-payload:CLIENT_ID],'AVG_RESPONSE_TIME',#[map-payload:AVG_RESPONSE_TIME],#[map-payload:TIMESTAMP]),
+                    (0,#[map-payload:CLIENT_ID],'MED_RESPONSE_TIME',#[map-payload:MED_RESPONSE_TIME],#[map-payload:TIMESTAMP]),
+                    (0,#[map-payload:CLIENT_ID],'MAX_RESPONSE_TIME',#[map-payload:MAX_RESPONSE_TIME],#[map-payload:TIMESTAMP])
+           "/>
+    </jdbc:connector>
+
+    <model name="URLAlertingModel">
+        <service name="URLAlertingService">
+            <inbound>
+                <jms:inbound-endpoint topic="monitoring.performance"/>
+            </inbound>
+            <component class="com.clood.monitoring.URLMetricsComponent"/>
+            <outbound>
+                <pass-through-router>
+                    <jdbc:outbound-endpoint queryKey="statsInsert">
+                        <jdbc:transaction action="ALWAYS_BEGIN"/>
+                    </jdbc:outbound-endpoint>
+                </pass-through-router>
+            </outbound>
+        </service>
+    </model>
+</mule>

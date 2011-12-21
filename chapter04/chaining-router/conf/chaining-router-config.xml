@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesource.org/schema/mule/core/2.2"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:spring="http://www.springframework.org/schema/beans"
+      xmlns:context="http://www.springframework.org/schema/context"
+      xmlns:cxf="http://www.mulesource.org/schema/mule/cxf/2.2"
+      xmlns:xm="http://www.mulesource.org/schema/mule/xml/2.2"
+      xmlns:jms="http://www.mulesource.org/schema/mule/jms/2.2"
+      xmlns:stdio="http://www.mulesource.org/schema/mule/stdio/2.2"
+      xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+       http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd
+       http://www.mulesource.org/schema/mule/core/2.2 http://www.mulesource.org/schema/mule/core/2.2/mule.xsd
+       http://www.mulesource.org/schema/mule/cxf/2.2 http://www.mulesource.org/schema/mule/cxf/2.2/mule-cxf.xsd
+       http://www.mulesource.org/schema/mule/xml/2.2 http://www.mulesource.org/schema/mule/xml/2.2/mule-xml.xsd
+       http://www.mulesource.org/schema/mule/jms/2.2 http://www.mulesource.org/schema/mule/jms/2.2/mule-jms.xsd
+       http://www.mulesource.org/schema/mule/stdio/2.2 http://www.mulesource.org/schema/mule/stdio/2.2/mule-stdio.xsd
+       "
+        >
+
+    <jms:activemq-connector name="jmsConnector"
+                            specification="1.1"
+                            brokerURL="vm://localhost"/>
+
+    <stdio:connector name="stdioConnector"
+                     messageDelayTime="1000"
+                     promptMessage="Enter a zip code: "/>
+
+    <cxf:connector name="cxfConnectorClient" createMultipleTransactedReceivers="true"/>
+    <cxf:connector name="cxfConnectorServer" createMultipleTransactedReceivers="true"/>
+
+    <model name="chainingRouterModel">
+        <service name="chainingRouterService">
+            <inbound>
+                <jms:inbound-endpoint queue="weather.request" synchronous="true">
+                    <transformers>
+                        <jms:jmsmessage-to-object-transformer/>
+                    </transformers>
+                </jms:inbound-endpoint>
+            </inbound>
+            <outbound>
+                <chaining-router>
+                    <outbound-endpoint
+                            address="wsdl-cxf:http://www.webservicex.net/usweather.asmx?WSDL&amp;method=GetWeatherReport"/>
+                    <jms:outbound-endpoint queue="weather.report" synchronous="true"/>
+                </chaining-router>
+            </outbound>
+        </service>
+
+        <service name="chainingRouterClient">
+            <inbound>
+                <stdio:inbound-endpoint system="IN"/>
+            </inbound>
+            <outbound>
+                <pass-through-router>
+                    <jms:outbound-endpoint queue="weather.request"/>
+                </pass-through-router>
+            </outbound>
+        </service>
+
+
+        <!-- Uncomment below to see the result printed to STDOUT -->
+
+        <!--
+        <service name="chainingRouterReceiver">
+            <inbound>
+                <jms:inbound-endpoint queue="weather.report"/>
+            </inbound>
+            <outbound>
+                <pass-through-router>
+                    <stdio:outbound-endpoint system="OUT">
+                        <transformers>
+                            <jms:jmsmessage-to-object-transformer/>
+                        </transformers>
+                    </stdio:outbound-endpoint>
+                </pass-through-router>
+            </outbound>
+        </service> -->
+    </model>
+
+</mule>

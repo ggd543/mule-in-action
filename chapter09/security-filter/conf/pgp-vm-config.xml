@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesource.org/schema/mule/core/2.2"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:spring="http://www.springframework.org/schema/beans"
+      xmlns:context="http://www.springframework.org/schema/context"
+      xmlns:pgp="http://www.mulesource.org/schema/mule/pgp/2.2"
+      xmlns:vm="http://www.mulesource.org/schema/mule/vm/2.2"
+      xmlns:jms="http://www.mulesource.org/schema/mule/jms/2.2"
+      xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+       http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd
+       http://www.mulesource.org/schema/mule/core/2.2 http://www.mulesource.org/schema/mule/core/2.2/mule.xsd
+       http://www.mulesource.org/schema/mule/pgp/2.2 http://www.mulesource.org/schema/mule/pgp/2.2/mule-pgp.xsd
+       http://www.mulesource.org/schema/mule/vm/2.2 http://www.mulesource.org/schema/mule/vm/2.2/mule-vm.xsd
+       http://www.mulesource.org/schema/mule/jms/2.2 http://www.mulesource.org/schema/mule/jms/2.2/mule-jms.xsd
+       "
+        >
+
+    <jms:activemq-connector name="jmsConnector" brokerURL="vm://localhost"/>
+
+    <spring:bean id="pgpKeyManager" class="org.mule.module.pgp.PGPKeyRingImpl" init-method="initialise">
+        <spring:property name="publicKeyRingFileName" value="conf/public.key.gpg"/>
+        <spring:property name="secretKeyRingFileName" value="conf/secret.key.gpg"/>
+        <spring:property name="secretAliasId" value="0x7927DE78"/>
+        <spring:property name="secretPassphrase" value="mule"/>
+    </spring:bean>
+    <spring:bean id="credentialAccessor" class="org.mule.security.MuleHeaderCredentialsAccessor"/>
+
+    <pgp:security-manager>
+        <pgp:security-provider name="pgpSecurityProvider" keyManager-ref="pgpKeyManager"/>
+        <pgp:keybased-encryption-strategy name="keyBasedEncryptionStrategy" keyManager-ref="pgpKeyManager"/>
+    </pgp:security-manager>
+
+    <model name="pgpModel">
+
+        <service name="pgpService">
+            <inbound>
+                <jms:inbound-endpoint queue="messages.encrypted"/>
+            </inbound>
+            <outbound>
+                <pass-through-router>
+                    <vm:outbound-endpoint path="services.decryption"/>                        
+                </pass-through-router>
+            </outbound>
+        </service>
+
+        <service name="out">
+            <inbound>
+                <vm:inbound-endpoint path="services.decryption">
+                    <pgp:security-filter strategyName="keyBasedEncryptionStrategy"
+                                         signRequired="true"
+                                         keyManager-ref="pgpKeyManager"
+                                         credentialsAccessor-ref="credentialAccessor"/>
+                </vm:inbound-endpoint>
+            </inbound>
+            <outbound>
+                <pass-through-router>
+                    <jms:outbound-endpoint queue="messages.decrypted"/>
+                </pass-through-router>
+            </outbound>
+        </service>
+
+        <queue-profile persistent="true"/>
+    </model>
+
+</mule>

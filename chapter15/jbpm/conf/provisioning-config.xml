@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesource.org/schema/mule/core/2.2"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:spring="http://www.springframework.org/schema/beans"
+      xmlns:context="http://www.springframework.org/schema/context"
+      xmlns:jms="http://www.mulesource.org/schema/mule/jms/2.2"
+      xmlns:bpm="http://www.mulesource.org/schema/mule/bpm/2.2"
+      xmlns:vm="http://www.mulesource.org/schema/mule/vm/2.2"
+      xmlns:smtp="http://www.mulesource.org/schema/mule/smtp/2.2"
+      xmlns:email="http://www.mulesource.org/schema/mule/email/2.2"
+      xmlns:imap="http://www.mulesource.org/schema/mule/imap/2.2"
+      xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+       http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd
+       http://www.mulesource.org/schema/mule/core/2.2 http://www.mulesource.org/schema/mule/core/2.2/mule.xsd
+       http://www.mulesource.org/schema/mule/jms/2.2 http://www.mulesource.org/schema/mule/jms/2.2/mule-jms.xsd
+       http://www.mulesource.org/schema/mule/bpm/2.2 http://www.mulesource.org/schema/mule/bpm/2.2/mule-bpm.xsd
+       http://www.mulesource.org/schema/mule/vm/2.2 http://www.mulesource.org/schema/mule/vm/2.2/mule-vm.xsd
+       http://www.mulesource.org/schema/mule/smtp/2.2 http://www.mulesource.org/schema/mule/smtp/2.2/mule-smtp.xsd
+       http://www.mulesource.org/schema/mule/email/2.2 http://www.mulesource.org/schema/mule/email/2.2/mule-email.xsd
+       http://www.mulesource.org/schema/mule/imap/2.2 http://www.mulesource.org/schema/mule/imap/2.2/mule-imap.xsd
+       "
+        >
+
+    <global-property name="smtp.host" value="localhost"/>
+    <global-property name="smtp.to" value="john.demic@gmail.com"/>
+    <global-property name="smtp.from" value="mule"/>
+    <global-property name="imap.host" value="localhost"/>
+    <global-property name="imap.port" value="65433"/>
+    <global-property name="imap.user" value="bob"/>
+    <global-property name="imap.password" value="password"/>
+
+    <spring:beans>
+        <spring:import resource="spring-config.xml"/>
+    </spring:beans>
+
+    <spring:bean id="jbpm" class="org.mule.transport.bpm.jbpm.Jbpm" destroy-method="destroy">
+        <spring:property name="jbpmConfiguration">
+            <spring:ref bean="jbpmConfig"/>
+        </spring:property>
+    </spring:bean>
+
+    <jms:activemq-connector name="jmsConnector" specification="1.1" brokerURL="vm://localhost"/>
+
+    <bpm:connector name="jBpmConnector" bpms-ref="jbpm" allowGlobalReceiver="true" allowGlobalDispatcher="true"
+            />
+
+    <vm:endpoint name="SendEmailConfirmationEndpoint" path="it.provisioning.confirmation"/>
+
+    <model name="accountProvisioningModel">
+
+        <service name="bpmSink">
+            <inbound>
+                <bpm:inbound-endpoint address="bpm://AccountProvisioningProcess"/>
+            </inbound>
+            <echo-component/>
+        </service>
+
+        <service name="createAccount">
+            <inbound>
+                <jms:inbound-endpoint queue="it.provisioning.requests">
+
+                </jms:inbound-endpoint>
+            </inbound>
+            <outbound>
+                <pass-through-router>
+                    <bpm:outbound-endpoint address="bpm://AccountProvisioningProcess" synchronous="false"/>
+                </pass-through-router>
+            </outbound>
+        </service>
+
+        <service name="crmProvisioning">
+            <inbound>
+                <jms:inbound-endpoint queue="it.provisioning.crm"/>
+            </inbound>
+            <log-component/>
+        </service>
+
+        <service name="hourEntryProvisioning">
+            <inbound>
+                <jms:inbound-endpoint queue="it.provisioning.hour-entry"/>
+            </inbound>
+            <log-component/>
+        </service>
+
+        <service name="ldapAccountProvisioning">
+            <inbound>
+                <jms:inbound-endpoint queue="it.provisioning.ldap"/>
+            </inbound>
+            <log-component/>
+        </service>
+
+        <service name="sshAccountProvisioning">
+            <inbound>
+                <jms:inbound-endpoint queue="it.provisioning.ssh"/>
+            </inbound>
+            <log-component/>
+        </service>
+
+        <service name="ticketingAccountProvisioning">
+            <inbound>
+                <jms:inbound-endpoint queue="it.provisioning.ticketing"/>
+            </inbound>
+            <log-component/>
+        </service>
+
+        <service name="imapAccountProvisioning">
+            <inbound>
+                <jms:inbound-endpoint queue="it.provisioning.imap"/>
+            </inbound>
+            <log-component/>
+        </service>
+
+        <service name="sendEmailConfirmation">
+            <inbound>
+                <vm:inbound-endpoint ref="SendEmailConfirmationEndpoint"/>
+            </inbound>
+            <outbound>
+                <pass-through-router>
+                    <vm:outbound-endpoint address="vm://receive-email"/>
+                    <!--
+                    <smtp:outbound-endpoint host="${smtp.host}" from="${smtp.from}" subject="Accounting Invoice"
+                                            to="${smtp.to}">
+                        <email:string-to-email-transformer/>
+                    </smtp:outbound-endpoint> -->
+                </pass-through-router>
+            </outbound>
+        </service>
+
+        <service name="receiveEmailConfirmation">
+            <inbound>
+                <vm:inbound-endpoint address="vm://receive-email"/>
+                <!--
+                <imap:inbound-endpoint host="${imap.host}" port="${imap.port}" user="${imap.user}" password="${imap.password}">
+                    <email:email-to-string-transformer/>
+                </imap:inbound-endpoint> -->
+            </inbound>
+
+            <outbound>
+                <pass-through-router>
+                    <bpm:outbound-endpoint address="bpm://AccountProvisioning">
+                        <transformers>
+                            <message-properties-transformer>
+                                <add-message-property key="MULE_BPM_PROCESS_ID" value="#[header:MULE_BPM_PROCESS_ID]"/>
+                            </message-properties-transformer>
+                        </transformers>
+                    </bpm:outbound-endpoint>
+                </pass-through-router>
+            </outbound>
+        </service>
+    </model>
+
+</mule>
